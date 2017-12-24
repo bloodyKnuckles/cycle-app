@@ -6,15 +6,29 @@ function main (sources) {
 
   const nav$ = sources.SWE.events('fetch')
     .map(evt => {
-      //switch ( evt.request.url ) {
-        //case 'http://localhost:9966/example/public/index.html':
-        //case 'http://localhost:9966/example/public/test.html':
-      if ( evt.request.url.endsWith('.html') ) {
+      if ( evt.request.url.includes('/api/') ) { // network first for api
+        evt.respondWith(
+          fetch(evt.request).then(function (res) {
+            if ( res.ok ) {
+              caches.open('cycle-app').then(function (cache) {
+                cache.put(evt.request, res.clone())
+              })
+              return res
+            }
+            else { throw Error(res.statusText) }
+          })
+          .catch(function (err) { return caches.match(evt.request) })
+        )
+      }
+      else { // cache first for non-api
           evt.respondWith(
             caches.open('cycle-app').then(function (cache) {
               return cache.match(evt.request).then(function (res) {
                 return res || fetch(evt.request).then(function (res) {
-                  if ( res.ok ) { return res }
+                  if ( res.ok ) {
+                    cache.put(evt.request, res.clone())
+                    return res
+                  }
                   else { throw Error(res.statusText) }
                 })
                 .catch(function (err) { return pageNotFound(evt.request, err) })
